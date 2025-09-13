@@ -11,7 +11,8 @@
     }
     html,body{
       height:100%;margin:0;
-      display:flex;align-items:center;justify-content:center;
+      display:flex;flex-direction:column;
+      align-items:center;justify-content:center;
       background:linear-gradient(180deg,#07121a,#0b2a3a);
       font-family:Arial,Helvetica,sans-serif;color:white;
     }
@@ -27,11 +28,15 @@
       pointer-events:none
     }
     #player{font-weight:700;color:#aaf}
+
+    /* Touch controls below the canvas */
     #touch-controls{
-      display:none; /* only on mobile */
-      position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
-      display:grid;grid-template-columns:60px 60px 60px;
-      grid-template-rows:60px 60px 60px;gap:8px;
+      display:none; /* hidden on desktop */
+      margin-top:14px;
+      display:grid;
+      grid-template-columns:60px 60px 60px;
+      grid-template-rows:60px 60px 60px;
+      gap:8px;
       justify-items:center;align-items:center;
     }
     #touch-controls button{
@@ -49,13 +54,13 @@
     </div>
     <canvas id="game" width="600" height="600" aria-label="Snake game"></canvas>
     <div id="overlay" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none"></div>
-    
-    <!-- Touch controls -->
-    <div id="touch-controls">
-      <div></div><button id="btn-up">↑</button><div></div>
-      <button id="btn-left">←</button><button id="btn-play">▶</button><button id="btn-right">→</button>
-      <div></div><button id="btn-down">↓</button><div></div>
-    </div>
+  </div>
+
+  <!-- Touch controls BELOW the game -->
+  <div id="touch-controls">
+    <div></div><button id="btn-up">↑</button><div></div>
+    <button id="btn-left">←</button><button id="btn-play">▶</button><button id="btn-right">→</button>
+    <div></div><button id="btn-down">↓</button><div></div>
   </div>
 
 <script>
@@ -206,13 +211,8 @@
     for (let i=snake.length-1;i>=0;i--){
       const s = snake[i];
       const px = s.x*TILE, py = s.y*TILE;
-      if (i===0){
-        ctx.fillStyle = '#7CFC00';
-        ctx.fillRect(px, py, TILE, TILE);
-      } else {
-        ctx.fillStyle = '#3cb371';
-        ctx.fillRect(px, py, TILE, TILE);
-      }
+      ctx.fillStyle = (i===0) ? '#7CFC00' : '#3cb371';
+      ctx.fillRect(px, py, TILE, TILE);
     }
     requestAnimationFrame(draw);
   }
