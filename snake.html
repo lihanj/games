@@ -69,6 +69,7 @@
       background:#69f;
     }
     .dpad .empty {visibility:hidden;}
+    #btn-play {font-size:16px;font-weight:700;}
   </style>
 </head>
 <body>
@@ -87,7 +88,7 @@
         <button id="btn-up">↑</button>
         <div class="empty"></div>
         <button id="btn-left">←</button>
-        <div class="empty"></div>
+        <button id="btn-play">▶</button>
         <button id="btn-right">→</button>
         <div class="empty"></div>
         <button id="btn-down">↓</button>
@@ -163,6 +164,12 @@
   bindBtn('btn-left',-1,0);
   bindBtn('btn-right',1,0);
 
+  // Play button
+  const btnPlay = document.getElementById('btn-play');
+  btnPlay.addEventListener('click', () => {
+    if (!running) startGame();
+  });
+
   function randFood(){
     while (true){
       const x = Math.floor(Math.random()*COLS);
@@ -203,13 +210,12 @@
       <div style="background:rgba(0,0,0,0.7);padding:18px 26px;border-radius:10px;text-align:center;color:white">
         <div style="font-size:36px;font-weight:700;margin-bottom:8px">Game Over</div>
         <div style="font-size:20px;margin-bottom:10px">Score: ${score} — Best: ${best}</div>
-        <div id="countdown" style="font-size:20px">Restarting in ${left}...</div>
-        <div style="margin-top:10px;font-size:13px;color:#ddd">Press <strong>Space</strong> to start immediately</div>
+        <div id="countdown" style="font-size:20px">Tap ▶ to restart or auto in ${left}...</div>
       </div>`;
     const cd = overlay.querySelector('#countdown');
     const iv = setInterval(() => {
       left--;
-      cd.textContent = 'Restarting in ' + left + '...';
+      cd.textContent = `Tap ▶ to restart or auto in ${left}...`;
       if (left <= 0){
         clearInterval(iv);
         overlay.style.pointerEvents = 'none';
@@ -314,7 +320,7 @@
       <div style="font-size:28px;font-weight:700;margin-bottom:8px">Snake</div>
       <div style="font-size:15px;margin-bottom:12px">Use arrow keys or WASD to move. Eat food to grow. Avoid walls and yourself.</div>
       <div style="margin-bottom:8px">Score persists as Best in this browser.</div>
-      <div style="font-size:13px;color:#ddd">Press <strong>Space</strong> to start</div>
+      <div style="font-size:13px;color:#ddd">Press <strong>Space</strong> or tap <strong>▶</strong> to start</div>
     </div>`;
 
   // Show D-pad if on touch device
