@@ -5,71 +5,40 @@
   <title>Snake Game</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    :root {
+    :root{
       --bg:#0b2a3a;
       --grid:#09212b;
     }
-    html,body {
-      height:100%;
-      margin:0;
-      display:flex;
-      align-items:center;
-      justify-content:center;
+    html,body{
+      height:100%;margin:0;
+      display:flex;align-items:center;justify-content:center;
       background:linear-gradient(180deg,#07121a,#0b2a3a);
-      font-family:Arial,Helvetica,sans-serif;
-      color:white;
+      font-family:Arial,Helvetica,sans-serif;color:white;
     }
-    #game-wrap {
-      position:relative;
-      display:flex;
-      flex-direction:column;
-      align-items:center;
-    }
-    canvas {
+    #game-wrap{position:relative;}
+    canvas{
       background:linear-gradient(180deg,#073845,#0b2a3a);
-      display:block;
-      border:6px solid #07292f;
-      border-radius:8px;
-      box-shadow:0 12px 30px rgba(0,0,0,0.5)
+      display:block;border:6px solid #07292f;
+      border-radius:8px;box-shadow:0 12px 30px rgba(0,0,0,0.5)
     }
-    #hud {
-      position:absolute;
-      left:12px;
-      top:12px;
-      right:12px;
-      display:flex;
-      justify-content:space-between;
-      align-items:center;
+    #hud{
+      position:absolute;left:12px;top:12px;right:12px;
+      display:flex;justify-content:space-between;align-items:center;
       pointer-events:none
     }
-    #player {font-weight:700;color:#aaf}
-
-    /* Mobile controls */
-    #controls {
-      display:none; /* hidden on desktop */
-      margin-top:12px;
+    #player{font-weight:700;color:#aaf}
+    #touch-controls{
+      display:none; /* only on mobile */
+      position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
+      display:grid;grid-template-columns:60px 60px 60px;
+      grid-template-rows:60px 60px 60px;gap:8px;
+      justify-items:center;align-items:center;
     }
-    .dpad {
-      display:grid;
-      grid-template-columns:60px 60px 60px;
-      grid-template-rows:60px 60px 60px;
-      gap:10px;
-      justify-content:center;
-      align-items:center;
+    #touch-controls button{
+      width:60px;height:60px;border:none;border-radius:8px;
+      background:#1c4b57;color:white;font-size:22px;font-weight:bold;
+      box-shadow:0 4px 10px rgba(0,0,0,0.4);
     }
-    .dpad button {
-      background:#134;
-      border:2px solid #69f;
-      color:white;
-      font-size:20px;
-      border-radius:12px;
-      box-shadow:0 4px 8px rgba(0,0,0,0.5);
-    }
-    .dpad button:active {
-      background:#69f;
-    }
-    .dpad .empty {visibility:hidden;}
-    #btn-play {font-size:16px;font-weight:700;}
   </style>
 </head>
 <body>
@@ -80,20 +49,12 @@
     </div>
     <canvas id="game" width="600" height="600" aria-label="Snake game"></canvas>
     <div id="overlay" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none"></div>
-
-    <!-- On-screen controls (only for touch devices) -->
-    <div id="controls">
-      <div class="dpad">
-        <div class="empty"></div>
-        <button id="btn-up">↑</button>
-        <div class="empty"></div>
-        <button id="btn-left">←</button>
-        <button id="btn-play">▶</button>
-        <button id="btn-right">→</button>
-        <div class="empty"></div>
-        <button id="btn-down">↓</button>
-        <div class="empty"></div>
-      </div>
+    
+    <!-- Touch controls -->
+    <div id="touch-controls">
+      <div></div><button id="btn-up">↑</button><div></div>
+      <button id="btn-left">←</button><button id="btn-play">▶</button><button id="btn-right">→</button>
+      <div></div><button id="btn-down">↓</button><div></div>
     </div>
   </div>
 
@@ -103,7 +64,7 @@
   const ctx = canvas.getContext('2d');
   const scoreEl = document.getElementById('score');
   const overlay = document.getElementById('overlay');
-  const controls = document.getElementById('controls');
+  const controls = document.getElementById('touch-controls');
   const TILE = 20;
   const COLS = canvas.width / TILE;
   const ROWS = canvas.height / TILE;
@@ -123,7 +84,6 @@
     nextDir = { x: dx, y: dy };
   }
 
-  // Desktop keyboard controls
   window.addEventListener('keydown', (e) => {
     if (e.code === 'ArrowLeft' || e.code === 'KeyA') setDirection(-1,0);
     if (e.code === 'ArrowRight' || e.code === 'KeyD') setDirection(1,0);
@@ -134,41 +94,17 @@
     }
   });
 
-  // Swipe controls
-  let touchStartX = null, touchStartY = null;
-  canvas.addEventListener('touchstart', (ev) => {
-    touchStartX = ev.touches[0].clientX;
-    touchStartY = ev.touches[0].clientY;
-  }, {passive:true});
-  canvas.addEventListener('touchend', (ev) => {
-    if (touchStartX == null || touchStartY == null) return;
-    const dx = ev.changedTouches[0].clientX - touchStartX;
-    const dy = ev.changedTouches[0].clientY - touchStartY;
-    if (Math.abs(dx) > Math.abs(dy)) {
-      if (dx > 30) setDirection(1,0);
-      if (dx < -30) setDirection(-1,0);
-    } else {
-      if (dy > 30) setDirection(0,1);
-      if (dy < -30) setDirection(0,-1);
-    }
-    touchStartX = touchStartY = null;
-  });
-
-  // D-pad button controls
-  function bindBtn(id, dx, dy){
-    const btn = document.getElementById(id);
-    if (btn) btn.addEventListener('click', () => setDirection(dx,dy));
+  // Enable touch controls only for touch devices
+  if ('ontouchstart' in window){
+    controls.style.display = 'grid';
+    document.getElementById('btn-up').onclick = () => setDirection(0,-1);
+    document.getElementById('btn-down').onclick = () => setDirection(0,1);
+    document.getElementById('btn-left').onclick = () => setDirection(-1,0);
+    document.getElementById('btn-right').onclick = () => setDirection(1,0);
+    document.getElementById('btn-play').onclick = () => {
+      if (!running) startGame();
+    };
   }
-  bindBtn('btn-up',0,-1);
-  bindBtn('btn-down',0,1);
-  bindBtn('btn-left',-1,0);
-  bindBtn('btn-right',1,0);
-
-  // Play button
-  const btnPlay = document.getElementById('btn-play');
-  btnPlay.addEventListener('click', () => {
-    if (!running) startGame();
-  });
 
   function randFood(){
     while (true){
@@ -210,12 +146,13 @@
       <div style="background:rgba(0,0,0,0.7);padding:18px 26px;border-radius:10px;text-align:center;color:white">
         <div style="font-size:36px;font-weight:700;margin-bottom:8px">Game Over</div>
         <div style="font-size:20px;margin-bottom:10px">Score: ${score} — Best: ${best}</div>
-        <div id="countdown" style="font-size:20px">Tap ▶ to restart or auto in ${left}...</div>
+        <div id="countdown" style="font-size:20px">Restarting in ${left}...</div>
+        <div style="margin-top:10px;font-size:13px;color:#ddd">Press <strong>Space</strong> or Tap <strong>▶</strong> to start immediately</div>
       </div>`;
     const cd = overlay.querySelector('#countdown');
     const iv = setInterval(() => {
       left--;
-      cd.textContent = `Tap ▶ to restart or auto in ${left}...`;
+      cd.textContent = 'Restarting in ' + left + '...';
       if (left <= 0){
         clearInterval(iv);
         overlay.style.pointerEvents = 'none';
@@ -255,25 +192,11 @@
     scoreEl.textContent = `Score: ${score} | Best: ${best}`;
   }
 
-  function drawGrid(){
-    ctx.save();
-    ctx.globalAlpha = 0.06;
-    ctx.fillStyle = '#ffffff';
-    for (let x=0;x<COLS;x++){
-      for (let y=0;y<ROWS;y++){
-        if ((x+y)%2===0){
-          ctx.fillRect(x*TILE, y*TILE, TILE, TILE);
-        }
-      }
-    }
-    ctx.restore();
-  }
-
   function draw(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
     ctx.fillStyle = '#072B33';
     ctx.fillRect(0,0,canvas.width,canvas.height);
-    drawGrid();
+
     if (food){
       ctx.fillStyle = '#ff4d4d';
       ctx.beginPath();
@@ -285,31 +208,13 @@
       const px = s.x*TILE, py = s.y*TILE;
       if (i===0){
         ctx.fillStyle = '#7CFC00';
-        roundRect(ctx, px, py, TILE, TILE, 4, true, false);
-        ctx.fillStyle = '#003300';
-        const ex = px + (dir.x===1 ? TILE*0.7 : dir.x===-1 ? TILE*0.25 : TILE*0.6);
-        const ey = py + (dir.y===1 ? TILE*0.7 : dir.y===-1 ? TILE*0.25 : TILE*0.35);
-        ctx.beginPath(); ctx.arc(ex, ey, Math.max(1, TILE*0.07), 0, Math.PI*2); ctx.fill();
+        ctx.fillRect(px, py, TILE, TILE);
       } else {
         ctx.fillStyle = '#3cb371';
-        roundRect(ctx, px, py, TILE, TILE, 3, true, false);
+        ctx.fillRect(px, py, TILE, TILE);
       }
     }
     requestAnimationFrame(draw);
-  }
-
-  function roundRect(ctx, x, y, w, h, r, fill, stroke){
-    if (typeof r === 'undefined') r = 5;
-    if (typeof stroke === 'undefined') stroke = true;
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
-    if (fill) ctx.fill();
-    if (stroke) ctx.strokeStyle = 'rgba(0,0,0,0.2)', ctx.stroke();
   }
 
   draw();
@@ -318,17 +223,10 @@
   overlay.innerHTML = `
     <div style="background:rgba(0,0,0,0.6);padding:18px 26px;border-radius:10px;text-align:center;color:white">
       <div style="font-size:28px;font-weight:700;margin-bottom:8px">Snake</div>
-      <div style="font-size:15px;margin-bottom:12px">Use arrow keys or WASD to move. Eat food to grow. Avoid walls and yourself.</div>
+      <div style="font-size:15px;margin-bottom:12px">Use arrow keys or WASD (or touch arrows) to move. Eat food to grow. Avoid walls and yourself.</div>
       <div style="margin-bottom:8px">Score persists as Best in this browser.</div>
-      <div style="font-size:13px;color:#ddd">Press <strong>Space</strong> or tap <strong>▶</strong> to start</div>
+      <div style="font-size:13px;color:#ddd">Press <strong>Space</strong> or Tap <strong>▶</strong> to start</div>
     </div>`;
-
-  // Show D-pad if on touch device
-  if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
-    controls.style.display = 'block';
-  }
-
-  window.startSnake = startGame;
 })();
 </script>
 </body>
