@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Bird & Fish Game</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    html,body{height:100%;margin:0;background:#87CEEB;display:flex;align-items:center;justify-content:center;}
+    canvas{background: linear-gradient(#87CEEB 0%, #b3e5ff 60%, #a6f0ff 100%); border:3px solid #2b7; display:block;}
+    #ui {
+      position: absolute;
+      top:12px;
+      left:12px;
+      font-family: Arial, Helvetica, sans-serif;
+      color:#033;
+      text-shadow: 0 1px 0 rgba(255,255,255,0.2);
+      user-select:none;
+    }
+    #score { font-size:20px; font-weight:700; }
+    #overlay {
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      pointer-events:none;
+    }
+    .panel {
+      background: rgba(255,255,255,0.95);
+      border-radius:10px;
+      padding:18px 26px;
+      text-align:center;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.25);
+      pointer-events:auto;
+    }
+    .panel h1{margin:0 0 8px 0; font-size:28px; color:#0a5;}
+    .panel p{margin:6px 0 12px 0; font-size:18px; color:#045;}
+    button {
+      background:#0a5;
+      color:white;
+      border:0;
+      padding:8px 14px;
+      border-radius:6px;
+      font-weight:700;
+      cursor:pointer;
+    }
+    /* Mobile controls */
+    #mobile-controls {
+      position:absolute;
+      right:12px;
+      bottom:12px;
+      display:flex;
+      gap:8px;
+      pointer-events:auto;
+    }
+    .ctl {
+      width:56px;height:56px;border-radius:10px;background:rgba(255,255,255,0.9);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:18px;box-shadow:0 6px 18px rgba(0,0,0,0.18);
+      user-select:none;
+    }
+  </style>
+</head>
+<body>
+  <div id="ui"><div id="score">Fish Eaten: 0</div></div>
+  <div id="overlay" aria-hidden="true"></div>
+
+  <canvas id="game" width="900" height="600"></canvas>
+
+  <!-- Mobile controls (appear alongside canvas) -->
+  <div id="mobile-controls" style="display:none;">
+    <div class="ctl" id="upBtn">▲</div>
+    <div class="ctl" id="downBtn">▼</div>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const scoreEl = document.getElementById('score');
+  const overlay = document.getElementById('overlay');
+  const mobileControls = document.getElementById('mobile-controls');
+  const upBtn = document.getElementById('upBtn');
+  const downBtn = document.getElementById('downBtn');
+
+  const WIDTH = canvas.width;
+  const HEIGHT = canvas.height;
+
+  // Game config
+  const TARGET = 20;          // fish to eat to win
+  const SPAWN_CHANCE = 0.02;  // probability per frame to spawn a fish (tweak)
+  const FISH_MIN_SPEED = 2.0;
+  const FISH_MAX_SPEED = 6.0;
+  const FISH_SIZE = 34;
+  const BIRD_SIZE = 48;
+  const BIRD_X = Math.floor(WIDTH * 0.2);
+
+  // Game state
+  let fishes = [];
+  let score = 0;
+  let running = true;
+  let lastTime = 0;
+
+  // Bird state
+  const bird = {
+    x: BIRD_X,
+    y: Math.floor(HEIGHT / 2),
+    width: BIRD_SIZE,
+    height: BIRD_SIZE,
+    speed: 6
+  };
+
+  // Input
+  const keys = { ArrowUp:false, ArrowDown:false, KeyW:false, KeyS:false };
+
+  function spawnFish() {
+    // spawn in lower half (water zone) but allow variety
+    const minY = Math.floor(HEIGHT * 0.45);
+    const maxY = HEIGHT - FISH_SIZE - 20;
+    const y = Math.floor(Math.random() * (maxY - minY + 1)) + minY;
+
+    // create fish off-screen at right
+    const speed = FISH_MIN_SPEED + Math.random() * (FISH_MAX_SPEED - FISH_MIN_SPEED);
+    fishes.push({
+      x: WIDTH + 20,
+      y,
+      w: FISH_SIZE,
+      h: FISH_SIZE,
+      speed
+    });
+  }
+
+  function rectsIntersect(a, b) {
+    return !(a.x + a.w < b.x || a.x > b.x + b.w || a.y + a.h < b.y || a.y > b.y + b.h);
+  }
+
+  function update(dt) {
+    if (!running) return;
+
+    // input moves bird up/down
+    if (keys.ArrowUp || keys.KeyW) bird.y -= bird.speed;
+    if (keys.ArrowDown || keys.KeyS) bird.y += bird.speed;
+
+    // clamp bird
+    if (bird.y < 0) bird.y = 0;
+    if (bird.y + bird.height > HEIGHT) bird.y = HEIGHT - bird.height;
+
+    // spawn fish randomly
+    if (Math.random() < SPAWN_CHANCE) spawnFish();
+
+    // move fishes and check collisions
+    for (let i = fishes.length - 1; i >= 0; i--) {
+      const f = fishes[i];
+      f.x -= f.speed;
+      // remove if off left
+      if (f.x + f.w < -50) {
+        fishes.splice(i,1);
+        continue;
+      }
+
+      // collision AABB with bird
+      const birdRect = { x: bird.x, y: bird.y, w: bird.width, h: bird.height };
+      const fishRect = { x: f.x, y: f.y, w: f.w, h: f.h };
+      if (rectsIntersect(birdRect, fishRect)) {
+        // eat fish
+        fishes.splice(i,1);
+        score++;
+        scoreEl.textContent = 'Fish Eaten: ' + score;
+        // win condition
+        if (score >= TARGET) {
+          running = false;
+          showWin();
+          return;
+        }
+      }
+    }
+  }
+
+  function drawBird(g) {
+    // simple stylized bird: circle body + beak
+    g.save();
+    g.translate(bird.x, bird.y);
+    // body
+    g.fillStyle = '#FF9A3D';
+    g.beginPath();
+    g.ellipse(bird.width/2, bird.height/2, bird.width/2, bird.height/2, 0, 0, Math.PI*2);
+    g.fill();
+    // wing
+    g.fillStyle = '#FF7F2A';
+    g.beginPath();
+    g.ellipse(bird.width/2 - 6, bird.height/2, bird.width/3, bird.height/3.2, -0.6, 0, Math.PI*2);
+    g.fill();
+    // eye
+    g.fillStyle = '#000';
+    g.beginPath();
+    g.arc(bird.width/2 + 12, bird.height/2 - 4, 5, 0, Math.PI*2);
+    g.fill();
+    // beak
+    g.fillStyle = '#FFD24D';
+    g.beginPath();
+    g.moveTo(bird.width - 6, bird.height/2);
+    g.lineTo(bird.width + 12, bird.height/2 - 8);
+    g.lineTo(bird.width + 12, bird.height/2 + 8);
+    g.closePath();
+    g.fill();
+
+    g.restore();
+  }
+
+  function drawFish(g, f) {
+    g.save();
+    g.translate(f.x, f.y);
+    // body
+    g.fillStyle = '#2D9CDB';
+    g.beginPath();
+    g.ellipse(0 + f.w/2, 0 + f.h/2, f.w/2, f.h/2, 0, 0, Math.PI*2);
+    g.fill();
+    // tail
+    g.fillStyle = '#1B7FB6';
+    g.beginPath();
+    g.moveTo(0 + 6, f.h/2);
+    g.lineTo(-12, f.h/2 - 6);
+    g.lineTo(-12, f.h/2 + 6);
+    g.closePath();
+    g.fill();
+    // eye
+    g.fillStyle = '#fff';
+    g.beginPath();
+    g.arc(f.w/2 + 6, f.h/2 - 6, 5, 0, Math.PI*2);
+    g.fill();
+    g.fillStyle = '#000';
+    g.beginPath();
+    g.arc(f.w/2 + 7, f.h/2 - 6, 2.4, 0, Math.PI*2);
+    g.fill();
+
+    g.restore();
+  }
+
+  function render() {
+    // clear
+    ctx.clearRect(0,0,WIDTH,HEIGHT);
+
+    // background water gradient (lower portion)
+    const grad = ctx.createLinearGradient(0, HEIGHT*0.55, 0, HEIGHT);
+    grad.addColorStop(0, 'rgba(173,216,230,0.3)');
+    grad.addColorStop(1, 'rgba(0,150,200,0.25)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, HEIGHT*0.55, WIDTH, HEIGHT*0.45);
+
+    // seabed
+    ctx.fillStyle = '#b8860b20';
+    ctx.fillRect(0, HEIGHT - 14, WIDTH, 14);
+
+    // draw fishes
+    for (const f of fishes) drawFish(ctx, f);
+
+    // draw bird
+    drawBird(ctx);
+
+    // HUD: score already updated in DOM; we can also draw here if wanted
+    // (we'll draw a small "player" label near top-left)
+    ctx.fillStyle = '#033';
+    ctx.font = '18px Arial';
+    ctx.textBaseline = 'top';
+    ctx.fillText('Fish Eaten: ' + score, 12, 12);
+  }
+
+  function loop(ts) {
+    const dt = (ts - lastTime) / 1000 || 0;
+    lastTime = ts;
+    update(dt);
+    render();
+    if (running) requestAnimationFrame(loop);
+  }
+
+  function showWin() {
+    overlay.innerHTML = '';
+    overlay.style.pointerEvents = 'auto';
+    overlay.setAttribute('aria-hidden', 'false');
+
+    const panel = document.createElement('div');
+    panel.className = 'panel';
+    const h1 = document.createElement('h1');
+    h1.textContent = "🎉 You're Free!";
+    const p = document.createElement('p');
+    p.textContent = 'You caught ' + score + ' fish.';
+    const btn = document.createElement('button');
+    btn.textContent = 'Play Again';
+    btn.addEventListener('click', () => {
+      overlay.innerHTML = '';
+      overlay.style.pointerEvents = 'none';
+      overlay.setAttribute('aria-hidden', 'true');
+      restart();
+    });
+
+    panel.appendChild(h1);
+    panel.appendChild(p);
+    panel.appendChild(btn);
+    overlay.appendChild(panel);
+  }
+
+  function restart() {
+    fishes = [];
+    score = 0;
+    scoreEl.textContent = 'Fish Eaten: ' + score;
+    bird.y = Math.floor(HEIGHT / 2);
+    running = true;
+    lastTime = 0;
+    requestAnimationFrame(loop);
+  }
+
+  // Input handlers
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'ArrowUp') keys.ArrowUp = true;
+    if (e.code === 'ArrowDown') keys.ArrowDown = true;
+    if (e.code === 'KeyW') keys.KeyW = true;
+    if (e.code === 'KeyS') keys.KeyS = true;
+  });
+  window.addEventListener('keyup', (e) => {
+    if (e.code === 'ArrowUp') keys.ArrowUp = false;
+    if (e.code === 'ArrowDown') keys.ArrowDown = false;
+    if (e.code === 'KeyW') keys.KeyW = false;
+    if (e.code === 'KeyS') keys.KeyS = false;
+  });
+
+  // Mobile support
+  function showMobileControlsIfNeeded() {
+    if (/Mobi|Android/i.test(navigator.userAgent) || window.innerWidth < 600) {
+      mobileControls.style.display = 'flex';
+    } else {
+      mobileControls.style.display = 'none';
+    }
+  }
+  showMobileControlsIfNeeded();
+  window.addEventListener('resize', showMobileControlsIfNeeded);
+
+  upBtn.addEventListener('touchstart', (e) => { e.preventDefault(); keys.ArrowUp = true; });
+  upBtn.addEventListener('touchend', (e) => { e.preventDefault(); keys.ArrowUp = false; });
+  downBtn.addEventListener('touchstart', (e) => { e.preventDefault(); keys.ArrowDown = true; });
+  downBtn.addEventListener('touchend', (e) => { e.preventDefault(); keys.ArrowDown = false; });
+
+  // Start the game loop
+  requestAnimationFrame(loop);
+
+})();
+</script>
+</body>
+</html>
