@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Snake Game</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    :root{
+      --bg:#0b2a3a;
+      --grid:#09212b;
+    }
+    html,body{height:100%;margin:0;display:flex;align-items:center;justify-content:center;background:linear-gradient(180deg,#07121a,#0b2a3a);font-family:Arial,Helvetica,sans-serif;color:white;}
+    #game-wrap{position:relative;}
+    canvas{background:linear-gradient(180deg,#073845,#0b2a3a);display:block;border:6px solid #07292f;border-radius:8px;box-shadow:0 12px 30px rgba(0,0,0,0.5)}
+    #hud{position:absolute;left:12px;top:12px;right:12px;display:flex;justify-content:space-between;align-items:center;pointer-events:none}
+    #player{font-weight:700;color:#aaf}
+  </style>
+</head>
+<body>
+  <div id="game-wrap">
+    <div id="hud">
+      <div id="player">Snake</div>
+      <div id="score">Score: 0 | Best: 0</div>
+    </div>
+    <canvas id="game" width="600" height="600" aria-label="Snake game"></canvas>
+    <div id="overlay" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none"></div>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const scoreEl = document.getElementById('score');
+  const overlay = document.getElementById('overlay');
+  const TILE = 20; // size of a tile in px
+  const COLS = canvas.width / TILE; // 30
+  const ROWS = canvas.height / TILE; // 30
+  const SPEED = 300; // ms per tick
+  let dir = { x: 1, y: 0 }; // initial direction (right)
+  let nextDir = { x: 1, y: 0 };
+  let snake = [{x: Math.floor(COLS/2), y: Math.floor(ROWS/2)}];
+  let food = null;
+  let running = false;
+  let tickTimer = null;
+  let score = 0;
+  const BEST_KEY = 'snake_best_score_v1';
+  let best = parseInt(localStorage.getItem(BEST_KEY)) || 0;
+
+  function setDirection(dx, dy){
+    if (snake.length > 1 && dx === -dir.x && dy === -dir.y) return;
+    nextDir = { x: dx, y: dy };
+  }
+
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'ArrowLeft' || e.code === 'KeyA') setDirection(-1,0);
+    if (e.code === 'ArrowRight' || e.code === 'KeyD') setDirection(1,0);
+    if (e.code === 'ArrowUp' || e.code === 'KeyW') setDirection(0,-1);
+    if (e.code === 'ArrowDown' || e.code === 'KeyS') setDirection(0,1);
+    if (e.code === 'Space') {
+      if (!running) startGame();
+    }
+  });
+
+  let touchStartY = null;
+  canvas.addEventListener('touchstart', (ev) => { touchStartY = ev.touches[0].clientY; }, {passive:true});
+  canvas.addEventListener('touchend', (ev) => {
+    if (touchStartY == null) return;
+    const dy = ev.changedTouches[0].clientY - touchStartY;
+    if (Math.abs(dy) > 30) {
+      if (dy < 0) setDirection(0,-1); else setDirection(0,1);
+    }
+    touchStartY = null;
+  });
+
+  function randFood(){
+    while (true){
+      const x = Math.floor(Math.random()*COLS);
+      const y = Math.floor(Math.random()*ROWS);
+      if (!snake.some(s => s.x===x && s.y===y)){
+        return { x, y };
+      }
+    }
+  }
+
+  function startGame(){
+    dir = { x: 1, y: 0 };
+    nextDir = { x: 1, y: 0 };
+    snake = [{x: Math.floor(COLS/2), y: Math.floor(ROWS/2)}];
+    score = 0;
+    running = true;
+    food = randFood();
+    updateScore();
+    clearInterval(tickTimer);
+    tickTimer = setInterval(tick, SPEED);
+    hideOverlay();
+  }
+
+  function gameOver(){
+    running = false;
+    clearInterval(tickTimer);
+    if (score > best){
+      best = score;
+      localStorage.setItem(BEST_KEY, best);
+    }
+    showRestartCountdown(5);
+  }
+
+  function showRestartCountdown(seconds){
+    let left = seconds;
+    overlay.style.pointerEvents = 'auto';
+    overlay.innerHTML = `
+      <div style="background:rgba(0,0,0,0.7);padding:18px 26px;border-radius:10px;text-align:center;color:white">
+        <div style="font-size:36px;font-weight:700;margin-bottom:8px">Game Over</div>
+        <div style="font-size:20px;margin-bottom:10px">Score: ${score} — Best: ${best}</div>
+        <div id="countdown" style="font-size:20px">Restarting in ${left}...</div>
+        <div style="margin-top:10px;font-size:13px;color:#ddd">Press <strong>Space</strong> to start immediately</div>
+      </div>`;
+    const cd = overlay.querySelector('#countdown');
+    const iv = setInterval(() => {
+      left--;
+      cd.textContent = 'Restarting in ' + left + '...';
+      if (left <= 0){
+        clearInterval(iv);
+        overlay.style.pointerEvents = 'none';
+        startGame();
+      }
+    }, 1000);
+  }
+
+  function hideOverlay(){
+    overlay.style.pointerEvents = 'none';
+    overlay.innerHTML = '';
+  }
+
+  function tick(){
+    dir = nextDir;
+    const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+    if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS){
+      gameOver();
+      return;
+    }
+    if (snake.some(seg => seg.x===head.x && seg.y===head.y)){
+      gameOver();
+      return;
+    }
+    snake.unshift(head);
+    if (food && head.x === food.x && head.y === food.y){
+      score++;
+      food = randFood();
+      if (score > best) best = score;
+      updateScore();
+    } else {
+      snake.pop();
+    }
+  }
+
+  function updateScore(){
+    scoreEl.textContent = `Score: ${score} | Best: ${best}`;
+  }
+
+  function drawGrid(){
+    ctx.save();
+    ctx.globalAlpha = 0.06;
+    ctx.fillStyle = '#ffffff';
+    for (let x=0;x<COLS;x++){
+      for (let y=0;y<ROWS;y++){
+        if ((x+y)%2===0){
+          ctx.fillRect(x*TILE, y*TILE, TILE, TILE);
+        }
+      }
+    }
+    ctx.restore();
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle = '#072B33';
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+    drawGrid();
+    if (food){
+      ctx.fillStyle = '#ff4d4d';
+      ctx.beginPath();
+      ctx.arc(food.x*TILE + TILE/2, food.y*TILE + TILE/2, TILE*0.4, 0, Math.PI*2);
+      ctx.fill();
+    }
+    for (let i=snake.length-1;i>=0;i--){
+      const s = snake[i];
+      const px = s.x*TILE, py = s.y*TILE;
+      if (i===0){
+        ctx.fillStyle = '#7CFC00';
+        roundRect(ctx, px, py, TILE, TILE, 4, true, false);
+        ctx.fillStyle = '#003300';
+        const ex = px + (dir.x===1 ? TILE*0.7 : dir.x===-1 ? TILE*0.25 : TILE*0.6);
+        const ey = py + (dir.y===1 ? TILE*0.7 : dir.y===-1 ? TILE*0.25 : TILE*0.35);
+        ctx.beginPath(); ctx.arc(ex, ey, Math.max(1, TILE*0.07), 0, Math.PI*2); ctx.fill();
+      } else {
+        ctx.fillStyle = '#3cb371';
+        roundRect(ctx, px, py, TILE, TILE, 3, true, false);
+      }
+    }
+    requestAnimationFrame(draw);
+  }
+
+  function roundRect(ctx, x, y, w, h, r, fill, stroke){
+    if (typeof r === 'undefined') r = 5;
+    if (typeof stroke === 'undefined') stroke = true;
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+    if (fill) ctx.fill();
+    if (stroke) ctx.strokeStyle = 'rgba(0,0,0,0.2)', ctx.stroke();
+  }
+
+  draw();
+  updateScore();
+  overlay.style.pointerEvents = 'auto';
+  overlay.innerHTML = `
+    <div style="background:rgba(0,0,0,0.6);padding:18px 26px;border-radius:10px;text-align:center;color:white">
+      <div style="font-size:28px;font-weight:700;margin-bottom:8px">Snake</div>
+      <div style="font-size:15px;margin-bottom:12px">Use arrow keys or WASD to move. Eat food to grow. Avoid walls and yourself.</div>
+      <div style="margin-bottom:8px">Score persists as Best in this browser.</div>
+      <div style="font-size:13px;color:#ddd">Press <strong>Space</strong> to start</div>
+    </div>`;
+  window.startSnake = startGame;
+})();
+</script>
+</body>
+</html>
