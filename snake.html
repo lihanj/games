@@ -8,18 +8,15 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: flex-start;
     background: #222;
     color: white;
     font-family: sans-serif;
     margin: 0;
     padding: 0;
     height: 100vh;
-    overflow: hidden;
   }
   canvas {
     background: #000;
-    display: block;
     margin-top: 10px;
   }
   #controls {
@@ -38,7 +35,7 @@
     background: #444;
     border: none;
     color: white;
-    font-size: 20px;
+    font-size: 22px;
     border-radius: 10px;
     width: 60px;
     height: 60px;
@@ -51,6 +48,8 @@
 <body>
 <h1>Snake Game</h1>
 <canvas id="gameCanvas"></canvas>
+
+<!-- Mobile Controls -->
 <div id="controls">
   <div class="grid">
     <div></div>
@@ -69,9 +68,9 @@
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
 
-// Resize canvas responsively
+// Responsive canvas
 function resizeCanvas() {
-  const size = Math.min(window.innerWidth, window.innerHeight * 0.7);
+  const size = Math.min(window.innerWidth * 0.9, window.innerHeight * 0.6);
   canvas.width = size;
   canvas.height = size;
 }
@@ -81,6 +80,7 @@ window.addEventListener("resize", resizeCanvas);
 const gridSize = 20;
 let snake, direction, food, score, bestScore = 0, gameInterval, running = false;
 
+// Init game
 function initGame() {
   snake = [{x: 10, y: 10}];
   direction = {x: 0, y: 0};
@@ -89,6 +89,7 @@ function initGame() {
   running = true;
 }
 
+// Random food position
 function randomFood() {
   return {
     x: Math.floor(Math.random() * (canvas.width / gridSize)),
@@ -96,12 +97,19 @@ function randomFood() {
   };
 }
 
+// Game loop
 function gameLoop() {
   if (!running) return;
+
   const head = {x: snake[0].x + direction.x, y: snake[0].y + direction.y};
 
-  // collision
-  if (head.x < 0 || head.y < 0 || head.x >= canvas.width / gridSize || head.y >= canvas.height / gridSize || snake.some(p => p.x === head.x && p.y === head.y)) {
+  // Check collisions
+  if (
+    head.x < 0 || head.y < 0 ||
+    head.x >= canvas.width / gridSize ||
+    head.y >= canvas.height / gridSize ||
+    snake.some(p => p.x === head.x && p.y === head.y)
+  ) {
     running = false;
     bestScore = Math.max(bestScore, score);
     return;
@@ -116,7 +124,7 @@ function gameLoop() {
     snake.pop();
   }
 
-  // draw
+  // Draw
   ctx.fillStyle = "#000";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -127,16 +135,19 @@ function gameLoop() {
   ctx.fillRect(food.x * gridSize, food.y * gridSize, gridSize-2, gridSize-2);
 
   ctx.fillStyle = "white";
-  ctx.fillText("Score: " + score, canvas.width - 80, 20);
-  ctx.fillText("Best: " + bestScore, canvas.width - 80, 40);
+  ctx.font = "16px Arial";
+  ctx.fillText("Score: " + score, canvas.width - 100, 20);
+  ctx.fillText("Best: " + bestScore, canvas.width - 100, 40);
 }
 
+// Set direction safely
 function setDirection(x, y) {
   if (!running) return;
   if (x === -direction.x && y === -direction.y) return; // prevent reverse
   direction = {x, y};
 }
 
+// Keyboard controls
 document.addEventListener("keydown", (e) => {
   if (e.key === "ArrowUp") setDirection(0, -1);
   if (e.key === "ArrowDown") setDirection(0, 1);
@@ -145,20 +156,21 @@ document.addEventListener("keydown", (e) => {
   if (e.key === " " && !running) startGame();
 });
 
-// Mobile controls
+// Mobile button controls
 document.getElementById("up").addEventListener("click", () => setDirection(0, -1));
 document.getElementById("down").addEventListener("click", () => setDirection(0, 1));
 document.getElementById("left").addEventListener("click", () => setDirection(-1, 0));
 document.getElementById("right").addEventListener("click", () => setDirection(1, 0));
 document.getElementById("play").addEventListener("click", () => startGame());
 
+// Start game
 function startGame() {
   initGame();
   clearInterval(gameInterval);
   gameInterval = setInterval(gameLoop, 120);
 }
 
-// Detect mobile and show buttons
+// Show mobile controls if touch device
 if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
   document.getElementById("controls").style.display = "block";
 }
