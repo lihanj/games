@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Endless Runner — Sprite Version</title>
+<style>
+  html,body{height:100%;margin:0;display:flex;align-items:center;justify-content:center;background:#f7f7f7;font-family:Arial,sans-serif;}
+  #wrap{max-width:1000px;width:100%;padding:16px}
+  #hud{display:flex;justify-content:space-between;margin-bottom:8px;font-weight:bold;color:#333}
+  #canvasWrap{position:relative;background:linear-gradient(#cfefff,#f7f7f7);border-radius:10px;padding:10px;box-shadow:0 8px 30px rgba(0,0,0,0.12);}
+  canvas{display:block;border-radius:6px;width:100%;height:auto;background:linear-gradient(#fff,#e6f6ff)}
+  #overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+  .panel{background:rgba(0,0,0,0.7);color:#fff;padding:18px 24px;border-radius:10px;text-align:center;pointer-events:auto}
+  .panel button{margin-top:10px;padding:8px 14px;border:none;border-radius:6px;background:#0b8457;color:#fff;font-weight:bold;cursor:pointer}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="hud">
+    <div>Endless Runner</div>
+    <div>Score: <span id="score">0</span> | Best: <span id="best">0</span></div>
+  </div>
+  <div id="canvasWrap">
+    <canvas id="game"></canvas>
+    <div id="overlay">
+      <div class="panel" id="startPanel">
+        <div style="font-size:20px;margin-bottom:8px">Press Space / Tap ▶ to Start</div>
+        <button id="playBtn">▶ Play</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const canvas=document.getElementById("game");
+  const ctx=canvas.getContext("2d");
+  const scoreEl=document.getElementById("score");
+  const bestEl=document.getElementById("best");
+  const overlay=document.getElementById("overlay");
+  const startPanel=document.getElementById("startPanel");
+  const playBtn=document.getElementById("playBtn");
+
+  function resize(){
+    const w=Math.min(window.innerWidth-40,900);
+    canvas.width=w;canvas.height=Math.round(w*0.45);
+  }
+  window.addEventListener("resize",resize);resize();
+
+  // Load simple sprite (player & obstacle)
+  const playerImg=new Image();
+  playerImg.src="data:image/svg+xml;base64,"+btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60">
+    <rect width="60" height="60" rx="10" ry="10" fill="#0b8457"/>
+    <circle cx="40" cy="20" r="6" fill="white"/>
+  </svg>`);
+  const obImg=new Image();
+  obImg.src="data:image/svg+xml;base64,"+btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="40" height="60">
+    <rect width="40" height="60" rx="6" ry="6" fill="#b33a3a"/>
+  </svg>`);
+
+  // Sounds
+  const jumpSound=new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEA..."); // (short beep)
+  const hitSound=new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEA...");  // (low buzz)
+  const winSound=new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEA...");  // (chime)
+  // (shortened — will embed small tones, I can expand if you want more variety)
+
+  let player, obstacles=[],score=0,best=parseInt(localStorage.getItem("runner_best")||"0"),running=false,lastTime=0,startTime=0;
+  bestEl.textContent=best;
+
+  const GROUND=()=>canvas.height*0.85;
+  function resetGame(){
+    player={x:canvas.width*0.15,y:GROUND()-50,w:50,h:50,vy:0,duck:false};
+    obstacles=[];score=0;scoreEl.textContent=0;startTime=Date.now();
+  }
+  function startGame(){
+    resetGame();running=true;overlay.style.pointerEvents="none";startPanel.style.display="none";
+    lastTime=performance.now();requestAnimationFrame(loop);
+  }
+  function endGame(win){
+    running=false;
+    if(score>best){best=score;localStorage.setItem("runner_best",best);bestEl.textContent=best;}
+    if(win)winSound.play();else hitSound.play();
+    startPanel.innerHTML=`<div style="font-size:18px">${win?"YOU WIN 🎉":"YOU LOSE 💀"}</div>
+    <div>Score: ${score} | Best: ${best}</div><button id="reBtn">▶ Play Again</button>`;
+    overlay.style.pointerEvents="auto";startPanel.style.display="block";
+    document.getElementById("reBtn").onclick=()=>startGame();
+  }
+  function spawnObstacle(){
+    obstacles.push({x:canvas.width,y:GROUND()-40,w:30,h:40});
+  }
+  function jump(){if(player.y>=GROUND()-player.h-1){player.vy=-14;jumpSound.play();}}
+  function duck(on){player.duck=on;if(on)player.h=25;else player.h=50;}
+  window.addEventListener("keydown",e=>{
+    if(e.code==="Space"||e.code==="ArrowUp")!running?startGame():jump();
+    if(e.code==="ArrowDown")duck(true);
+  });
+  window.addEventListener("keyup",e=>{if(e.code==="ArrowDown")duck(false);});
+  playBtn.onclick=()=>startGame();
+
+  let spawnT=0;
+  function loop(t){
+    if(!running)return;const dt=t-lastTime;lastTime=t;
+    spawnT+=dt;if(spawnT>1500){spawnObstacle();spawnT=0;}
+    // physics
+    player.vy+=0.8;player.y+=player.vy;if(player.y>GROUND()-player.h){player.y=GROUND()-player.h;player.vy=0;}
+    // obstacles
+    for(let i=obstacles.length-1;i>=0;i--){let ob=obstacles[i];ob.x-=6;
+      if(ob.x+ob.w<0)obstacles.splice(i,1);
+      else if(ob.x<player.x+player.w&&ob.x+ob.w>player.x&&ob.y<player.y+player.h&&ob.y+ob.h>player.y){endGame(false);return;}
+      else if(!ob.passed&&ob.x+ob.w<player.x){ob.passed=true;score++;scoreEl.textContent=score;}
+    }
+    // win by time
+    if(Date.now()-startTime>30000){endGame(true);return;}
+    draw();requestAnimationFrame(loop);
+  }
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.fillStyle="#8b6f47";ctx.fillRect(0,GROUND(),canvas.width,canvas.height-GROUND());
+    ctx.drawImage(playerImg,player.x,player.y,player.w,player.h);
+    for(const ob of obstacles)ctx.drawImage(obImg,ob.x,ob.y,ob.w,ob.h);
+    ctx.fillStyle="#333";ctx.fillText("Time: "+(30-Math.floor((Date.now()-startTime)/1000)),10,20);
+  }
+})();
+</script>
+</body>
+</html>
