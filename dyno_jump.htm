@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
-<title>Endless Runner — Sprite Version</title>
+<title>Endless Runner — Level Select</title>
 <style>
   html,body{height:100%;margin:0;display:flex;align-items:center;justify-content:center;background:#f7f7f7;font-family:Arial,sans-serif;}
   #wrap{max-width:1000px;width:100%;padding:16px}
@@ -12,7 +12,7 @@
   canvas{display:block;border-radius:6px;width:100%;height:auto;background:linear-gradient(#fff,#e6f6ff)}
   #overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
   .panel{background:rgba(0,0,0,0.7);color:#fff;padding:18px 24px;border-radius:10px;text-align:center;pointer-events:auto}
-  .panel button{margin-top:10px;padding:8px 14px;border:none;border-radius:6px;background:#0b8457;color:#fff;font-weight:bold;cursor:pointer}
+  .panel button{margin:6px;padding:8px 14px;border:none;border-radius:6px;background:#0b8457;color:#fff;font-weight:bold;cursor:pointer}
 </style>
 </head>
 <body>
@@ -24,9 +24,9 @@
   <div id="canvasWrap">
     <canvas id="game"></canvas>
     <div id="overlay">
-      <div class="panel" id="startPanel">
-        <div style="font-size:20px;margin-bottom:8px">Press Space / Tap ▶ to Start</div>
-        <button id="playBtn">▶ Play</button>
+      <div class="panel" id="menuPanel">
+        <div style="font-size:20px;margin-bottom:8px">Select Level</div>
+        <div id="levelButtons"></div>
       </div>
     </div>
   </div>
@@ -39,8 +39,8 @@
   const scoreEl=document.getElementById("score");
   const bestEl=document.getElementById("best");
   const overlay=document.getElementById("overlay");
-  const startPanel=document.getElementById("startPanel");
-  const playBtn=document.getElementById("playBtn");
+  const menuPanel=document.getElementById("menuPanel");
+  const levelButtons=document.getElementById("levelButtons");
 
   function resize(){
     const w=Math.min(window.innerWidth-40,900);
@@ -58,7 +58,7 @@
     <rect width="40" height="60" rx="6" ry="6" fill="#b33a3a"/>
   </svg>`);
 
-  let player, obstacles=[],score=0,best=parseInt(localStorage.getItem("runner_best")||"0"),running=false,lastTime=0,startTime=0;
+  let player, obstacles=[],score=0,best=parseInt(localStorage.getItem("runner_best")||"0"),running=false,lastTime=0,startTime=0,level=1,speedFactor=1;
   bestEl.textContent=best;
 
   const GROUND=()=>canvas.height*0.85;
@@ -68,18 +68,24 @@
     obstacles=[];score=0;scoreEl.textContent=0;startTime=Date.now();
   }
 
-  function startGame(){
-    resetGame();running=true;overlay.style.pointerEvents="none";startPanel.style.display="none";
+  function startGame(selectedLevel){
+    level=selectedLevel;
+    // level 1 is 5× slower than old default
+    // old default speed ~6, so Level 1 speed = 6/5 = 1.2
+    speedFactor=1.2*level;  
+    resetGame();running=true;overlay.style.pointerEvents="none";menuPanel.style.display="none";
     lastTime=performance.now();requestAnimationFrame(loop);
   }
 
   function endGame(win){
     running=false;
     if(score>best){best=score;localStorage.setItem("runner_best",best);bestEl.textContent=best;}
-    startPanel.innerHTML=`<div style="font-size:18px">${win?"YOU WIN 🎉":"YOU LOSE 💀"}</div>
-    <div>Score: ${score} | Best: ${best}</div><button id="reBtn">▶ Play Again</button>`;
-    overlay.style.pointerEvents="auto";startPanel.style.display="block";
-    document.getElementById("reBtn").onclick=()=>startGame();
+    menuPanel.innerHTML=`<div style="font-size:18px">${win?"YOU WIN 🎉":"YOU LOSE 💀"}</div>
+    <div>Score: ${score} | Best: ${best}</div>
+    <div style="margin-top:8px">Select Level</div>
+    <div id="levelButtons"></div>`;
+    overlay.style.pointerEvents="auto";menuPanel.style.display="block";
+    buildLevelButtons();
   }
 
   function spawnObstacle(){
@@ -90,17 +96,16 @@
   function duck(on){player.duck=on;if(on)player.h=25;else player.h=50;}
 
   window.addEventListener("keydown",e=>{
-    if(e.code==="Space"||e.code==="ArrowUp")!running?startGame():jump();
+    if(e.code==="Space"||e.code==="ArrowUp")running?jump():null;
     if(e.code==="ArrowDown")duck(true);
   });
   window.addEventListener("keyup",e=>{if(e.code==="ArrowDown")duck(false);});
-  playBtn.onclick=()=>startGame();
 
   // Touch swipe support
   let touchStartY=null;
   canvas.addEventListener("touchstart",e=>{touchStartY=e.touches[0].clientY;});
   canvas.addEventListener("touchend",e=>{
-    if(!running){startGame();return;}
+    if(!running)return;
     const endY=e.changedTouches[0].clientY;
     const diff=touchStartY-endY;
     if(diff>40) jump();
@@ -114,7 +119,7 @@
     // physics
     player.vy+=0.8;player.y+=player.vy;if(player.y>GROUND()-player.h){player.y=GROUND()-player.h;player.vy=0;}
     // obstacles
-    for(let i=obstacles.length-1;i>=0;i--){let ob=obstacles[i];ob.x-=isMobile()?4:6;
+    for(let i=obstacles.length-1;i>=0;i--){let ob=obstacles[i];ob.x-=speedFactor;
       if(ob.x+ob.w<0)obstacles.splice(i,1);
       else if(ob.x<player.x+player.w&&ob.x+ob.w>player.x&&ob.y<player.y+player.h&&ob.y+ob.h>player.y){endGame(false);return;}
       else if(!ob.passed&&ob.x+ob.w<player.x){ob.passed=true;score++;scoreEl.textContent=score;}
@@ -128,14 +133,21 @@
     ctx.fillStyle="#8b6f47";ctx.fillRect(0,GROUND(),canvas.width,canvas.height-GROUND());
     ctx.drawImage(playerImg,player.x,player.y,player.w,player.h);
     for(const ob of obstacles)ctx.drawImage(obImg,ob.x,ob.y,ob.w,ob.h);
-    ctx.fillStyle="#333";ctx.fillText("Time: "+(30-Math.floor((Date.now()-startTime)/1000)),10,20);
+    ctx.fillStyle="#333";ctx.fillText("Level: "+level+" | Time: "+(30-Math.floor((Date.now()-startTime)/1000)),10,20);
   }
 
-  function isMobile(){
-    return /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+  function buildLevelButtons(){
+    const lb=document.getElementById("levelButtons");
+    lb.innerHTML="";
+    for(let i=1;i<=7;i++){
+      const btn=document.createElement("button");
+      btn.textContent="Level "+i;
+      btn.onclick=()=>startGame(i);
+      lb.appendChild(btn);
+    }
   }
+  buildLevelButtons();
 })();
 </script>
 </body>
 </html>
-
