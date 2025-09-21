@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no" />
 <title>Endless Runner — Sprite Version</title>
 <style>
   html,body{height:100%;margin:0;display:flex;align-items:center;justify-content:center;background:#f7f7f7;font-family:Arial,sans-serif;}
@@ -48,7 +48,6 @@
   }
   window.addEventListener("resize",resize);resize();
 
-  // Load simple sprite (player & obstacle)
   const playerImg=new Image();
   playerImg.src="data:image/svg+xml;base64,"+btoa(`<svg xmlns="http://www.w3.org/2000/svg" width="60" height="60">
     <rect width="60" height="60" rx="10" ry="10" fill="#0b8457"/>
@@ -59,44 +58,54 @@
     <rect width="40" height="60" rx="6" ry="6" fill="#b33a3a"/>
   </svg>`);
 
-  // Sounds
-  const jumpSound=new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEA..."); // (short beep)
-  const hitSound=new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEA...");  // (low buzz)
-  const winSound=new Audio("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEA...");  // (chime)
-  // (shortened — will embed small tones, I can expand if you want more variety)
-
   let player, obstacles=[],score=0,best=parseInt(localStorage.getItem("runner_best")||"0"),running=false,lastTime=0,startTime=0;
   bestEl.textContent=best;
 
   const GROUND=()=>canvas.height*0.85;
+
   function resetGame(){
     player={x:canvas.width*0.15,y:GROUND()-50,w:50,h:50,vy:0,duck:false};
     obstacles=[];score=0;scoreEl.textContent=0;startTime=Date.now();
   }
+
   function startGame(){
     resetGame();running=true;overlay.style.pointerEvents="none";startPanel.style.display="none";
     lastTime=performance.now();requestAnimationFrame(loop);
   }
+
   function endGame(win){
     running=false;
     if(score>best){best=score;localStorage.setItem("runner_best",best);bestEl.textContent=best;}
-    if(win)winSound.play();else hitSound.play();
     startPanel.innerHTML=`<div style="font-size:18px">${win?"YOU WIN 🎉":"YOU LOSE 💀"}</div>
     <div>Score: ${score} | Best: ${best}</div><button id="reBtn">▶ Play Again</button>`;
     overlay.style.pointerEvents="auto";startPanel.style.display="block";
     document.getElementById("reBtn").onclick=()=>startGame();
   }
+
   function spawnObstacle(){
     obstacles.push({x:canvas.width,y:GROUND()-40,w:30,h:40});
   }
-  function jump(){if(player.y>=GROUND()-player.h-1){player.vy=-14;jumpSound.play();}}
+
+  function jump(){if(player.y>=GROUND()-player.h-1){player.vy=-14;}}
   function duck(on){player.duck=on;if(on)player.h=25;else player.h=50;}
+
   window.addEventListener("keydown",e=>{
     if(e.code==="Space"||e.code==="ArrowUp")!running?startGame():jump();
     if(e.code==="ArrowDown")duck(true);
   });
   window.addEventListener("keyup",e=>{if(e.code==="ArrowDown")duck(false);});
   playBtn.onclick=()=>startGame();
+
+  // Touch swipe support
+  let touchStartY=null;
+  canvas.addEventListener("touchstart",e=>{touchStartY=e.touches[0].clientY;});
+  canvas.addEventListener("touchend",e=>{
+    if(!running){startGame();return;}
+    const endY=e.changedTouches[0].clientY;
+    const diff=touchStartY-endY;
+    if(diff>40) jump();
+    else if(diff<-40){ duck(true); setTimeout(()=>duck(false),500); }
+  });
 
   let spawnT=0;
   function loop(t){
@@ -105,15 +114,15 @@
     // physics
     player.vy+=0.8;player.y+=player.vy;if(player.y>GROUND()-player.h){player.y=GROUND()-player.h;player.vy=0;}
     // obstacles
-    for(let i=obstacles.length-1;i>=0;i--){let ob=obstacles[i];ob.x-=6;
+    for(let i=obstacles.length-1;i>=0;i--){let ob=obstacles[i];ob.x-=isMobile()?4:6;
       if(ob.x+ob.w<0)obstacles.splice(i,1);
       else if(ob.x<player.x+player.w&&ob.x+ob.w>player.x&&ob.y<player.y+player.h&&ob.y+ob.h>player.y){endGame(false);return;}
       else if(!ob.passed&&ob.x+ob.w<player.x){ob.passed=true;score++;scoreEl.textContent=score;}
     }
-    // win by time
     if(Date.now()-startTime>30000){endGame(true);return;}
     draw();requestAnimationFrame(loop);
   }
+
   function draw(){
     ctx.clearRect(0,0,canvas.width,canvas.height);
     ctx.fillStyle="#8b6f47";ctx.fillRect(0,GROUND(),canvas.width,canvas.height-GROUND());
@@ -121,7 +130,12 @@
     for(const ob of obstacles)ctx.drawImage(obImg,ob.x,ob.y,ob.w,ob.h);
     ctx.fillStyle="#333";ctx.fillText("Time: "+(30-Math.floor((Date.now()-startTime)/1000)),10,20);
   }
+
+  function isMobile(){
+    return /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+  }
 })();
 </script>
 </body>
 </html>
+
