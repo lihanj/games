@@ -72,7 +72,7 @@
     level=selectedLevel;
     // level 1 is 5× slower than old default
     // old default speed ~6, so Level 1 speed = 6/5 = 1.2
-    speedFactor=1.2*level;  
+    speedFactor=3*level;  
     resetGame();running=true;overlay.style.pointerEvents="none";menuPanel.style.display="none";
     lastTime=performance.now();requestAnimationFrame(loop);
   }
@@ -151,3 +151,4 @@
 </script>
 </body>
 </html>
+
